@@ -1,0 +1,5 @@
+Tracker,Status,Priority,Subject,Assignee,Target version,Start date,Due date,Estimated time,Parent task,RedmineID
+Task,New,Low,Task commercial auto development ,Prasad Mhaske,Sprint 51 - New Commercial Auto (New Business) ,5/31/2026,07-03-2026,1,#207990,423
+Task,New,Low,Task contracts management development,Mangesh Pawar,#5318,5/31/2026,07-03-2026,1,#207991,332
+Task,New,Low,Test,Saishree Godbole,Sprint 20 - AI IVR,5/31/2026,07-03-2026,1,#207841,408
+,,,,,,,,,,380

@@ -1,0 +1,9 @@
+# Python dependencies for Jaya-Project (redmine_bulk_web.py, Test.py, call.py)
+# Install: pip install -r requirements.txt
+
+flask>=3.0.0
+python-dotenv>=1.0.0
+requests>=2.31.0
+urllib3>=2.0.0
+streamlit>=1.35.0
+

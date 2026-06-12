@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Redmine Bulk Uploader</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --surface-hover: #232d3f;
+      --border: #2d3a4d;
+      --text: #e7ecf3;
+      --muted: #8b9cb3;
+      --accent: #3d8bfd;
+      --ok: #3fb950;
+      --warn: #d29922;
+      --err: #f85149;
+      --radius: 10px;
+    }
+    
+    * { box-sizing: border-box; }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(135deg, var(--bg) 0%, #141a24 100%);
+      color: var(--text);
+      margin: 0;
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+    
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem 3.5rem;
+    }
+    
+    /* Header */
+    .header {
+      margin-bottom: 2.5rem;
+    }
+    
+    .header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      margin: 0 0 0.5rem;
+      background: linear-gradient(135deg, var(--accent), #60a5fa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    
+    .header p {
+      color: var(--muted);
+      margin: 0;
+      font-size: 0.95rem;
+    }
+    
+    /* Main grid */
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.75rem;
+      margin-bottom: 2rem;
+    }
+    
+    @media (max-width: 768px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+    
+    /* Panel */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.75rem;
+      transition: all 0.2s;
+    }
+    
+    .panel:hover {
+      border-color: var(--accent);
+      box-shadow: 0 8px 24px rgba(61, 139, 253, 0.08);
+    }
+    
+    .panel.full { grid-column: 1 / -1; }
+    
+    /* Upload area */
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      padding: 3rem 1.5rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: rgba(61, 139, 253, 0.02);
+    }
+    
+    .upload-zone:hover, .upload-zone.active {
+      border-color: var(--accent);
+      background: rgba(61, 139, 253, 0.08);
+    }
+    
+    .upload-zone.dragover {
+      border-color: var(--accent);
+      background: rgba(61, 139, 253, 0.12);
+      transform: scale(1.01);
+    }
+    
+    .upload-icon {
+      font-size: 2.5rem;
+      margin-bottom: 0.75rem;
+      opacity: 0.7;
+    }
+    
+    .upload-zone p {
+      margin: 0.5rem 0;
+      font-size: 0.95rem;
+    }
+    
+    .upload-zone .main {
+      color: var(--text);
+      font-weight: 600;
+      font-size: 1rem;
+    }
+    
+    .upload-zone .hint {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-top: 0.5rem;
+    }
+    
+    .file-name {
+      display: inline-block;
+      background: rgba(61, 139, 253, 0.15);
+      color: var(--accent);
+      padding: 0.4rem 0.8rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      margin-top: 1rem;
+      font-weight: 500;
+    }
+    
+    input[type="file"] { display: none; }
+    
+
+    
+    /* Buttons */
+    .button-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+    }
+    
+    .button-group.single {
+      grid-template-columns: 1fr;
+    }
+    
+    button {
+      padding: 0.75rem 1.25rem;
+      border-radius: 8px;
+      border: none;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    
+    button.primary {
+      background: linear-gradient(135deg, var(--accent), #60a5fa);
+      color: white;
+      width: 100%;
+    }
+    
+    button.primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    button.primary:not(:disabled):hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(61, 139, 253, 0.3);
+    }
+    
+    button.secondary {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    
+    button.secondary:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    
+    /* Banner */
+    .banner {
+      display: none;
+      padding: 1rem 1.25rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      margin-bottom: 1.5rem;
+      border: 1px solid;
+    }
+    
+    .banner.show { display: block; }
+    .banner.err { background: rgba(248, 81, 73, 0.12); border-color: var(--err); color: #ffb4af; }
+    .banner.ok { background: rgba(63, 185, 80, 0.12); border-color: var(--ok); color: #acf2b3; }
+    .banner.warn { background: rgba(210, 153, 34, 0.12); border-color: var(--warn); color: #ffd966; }
+    
+    /* Stats */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    
+    .stat {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem 1rem;
+      text-align: center;
+    }
+    
+    .stat .num {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 0.35rem;
+    }
+    
+    .stat .label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      font-weight: 600;
+    }
+    
+    .stat.ok .num { color: var(--ok); }
+    .stat.fail .num { color: var(--err); }
+    .stat.skip .num { color: var(--warn); }
+    .stat.total .num { color: var(--accent); }
+    
+    /* Log */
+    .log-container {
+      display: none;
+    }
+    
+    .log-container.show { display: block; }
+    
+    .log-header {
+      font-size: 0.85rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.75rem;
+      font-weight: 600;
+    }
+    
+    .log {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      font-size: 0.8rem;
+      line-height: 1.6;
+      overflow: auto;
+      max-height: 300px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
+      color: var(--muted);
+    }
+    
+    /* Tips */
+    .tips {
+      background: rgba(61, 139, 253, 0.06);
+      border: 1px solid rgba(61, 139, 253, 0.2);
+      border-radius: 8px;
+      padding: 1rem;
+      font-size: 0.85rem;
+    }
+    
+    .tips h4 {
+      margin: 0 0 0.5rem;
+      color: var(--accent);
+      font-weight: 600;
+    }
+    
+    .tips ul {
+      margin: 0;
+      padding-left: 1.2rem;
+      color: var(--muted);
+    }
+    
+    .tips li { margin-bottom: 0.4rem; }
+    
+    /* Loading state */
+    .spinner {
+      display: inline-block;
+      width: 1rem;
+      height: 1rem;
+      border: 2px solid rgba(61, 139, 253, 0.2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+      margin-right: 0.5rem;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .button-content {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1>📤 Redmine Bulk Uploader</h1>
+      <p>Upload CSV to create multiple tasks instantly</p>
+    </div>
+    
+    <!-- Banner -->
+    <div id="banner" class="banner"></div>
+    
+    <!-- Main Content -->
+    <div class="grid">
+      <!-- Upload Panel -->
+      <div class="panel full">
+        <div id="upload-zone" class="upload-zone" tabindex="0">
+          <div class="upload-icon">📁</div>
+          <p class="main">Drop your CSV here</p>
+          <p class="hint">or click to browse</p>
+          <div id="file-name" class="file-name" style="display:none;"></div>
+        </div>
+        <input type="file" id="file-input" accept=".csv,text/csv" />
+        
+
+        
+        <!-- Action Buttons -->
+        <div class="button-group single">
+          <button id="upload-btn" class="primary" disabled>
+            <span class="button-content">
+              <span id="btn-text">Upload & Process</span>
+            </span>
+          </button>
+        </div>
+      </div>
+      
+      <!-- Results Panel -->
+      <div class="panel full" id="results-panel" style="display:none;">
+        <h3 style="margin-top:0;">Results</h3>
+        
+        <div class="stats">
+          <div class="stat ok">
+            <div class="num" id="stat-created">0</div>
+            <div class="label">Created</div>
+          </div>
+          <div class="stat fail">
+            <div class="num" id="stat-failed">0</div>
+            <div class="label">Failed</div>
+          </div>
+          <div class="stat skip">
+            <div class="num" id="stat-skipped">0</div>
+            <div class="label">Skipped</div>
+          </div>
+          <div class="stat total">
+            <div class="num" id="stat-total">0</div>
+            <div class="label">Total</div>
+          </div>
+        </div>
+        
+        <!-- Log -->
+        <div class="log-container" id="log-container">
+          <div class="log-header">Processing Log</div>
+          <div class="log" id="log"></div>
+        </div>
+        
+        <!-- Actions -->
+        <div class="button-group single" style="margin-top:1.5rem;">
+          <button id="reset-btn" class="secondary">Process Another CSV</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Tips Section -->
+    <div class="tips">
+      <h4>📋 CSV Format</h4>
+      <ul>
+        <li><strong>RedmineID</strong> — Project ID </li>
+        <li><strong>Tracker</strong> — Bug, Task, Feature, Change Request, etc.</li>
+        <li><strong>Priority</strong> — Low, Normal, High, Critical</li>
+        <li><strong>Subject</strong> — Task title (required)</li>
+        <li><strong>Assignee</strong> — Team member name</li>
+        <li><strong>Target version</strong> — Sprint/version name</li>
+        <li><strong>Start date, Due date</strong> — Format: M/D/YYYY</li>
+        <li><strong>Estimated time</strong> — Hours (e.g., 6, 8, 12)</li>
+        <li><strong>Parent task</strong> — Parent issue ID (e.g., #104886)</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    const uploadZone = document.getElementById("upload-zone");
+    const fileInput = document.getElementById("file-input");
+    const fileNameEl = document.getElementById("file-name");
+    const uploadBtn = document.getElementById("upload-btn");
+    const resetBtn = document.getElementById("reset-btn");
+    const banner = document.getElementById("banner");
+    const resultsPanel = document.getElementById("results-panel");
+    const logEl = document.getElementById("log");
+    const logContainer = document.getElementById("log-container");
+    const btnText = document.getElementById("btn-text");
+    
+    let selectedFile = null;
+    let isProcessing = false;
+    
+    // File selection
+    uploadZone.addEventListener("click", () => fileInput.click());
+    uploadZone.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        fileInput.click();
+      }
+    });
+    
+    fileInput.addEventListener("change", () => {
+      selectedFile = fileInput.files[0] || null;
+      if (selectedFile) {
+        fileNameEl.textContent = selectedFile.name;
+        fileNameEl.style.display = "inline-block";
+        uploadZone.classList.add("active");
+        uploadBtn.disabled = false;
+      }
+      hideBanner();
+    });
+    
+    // Drag & drop
+    ["dragenter", "dragover"].forEach((ev) => {
+      uploadZone.addEventListener(ev, (e) => {
+        e.preventDefault();
+        uploadZone.classList.add("dragover");
+      });
+    });
+    
+    ["dragleave", "drop"].forEach((ev) => {
+      uploadZone.addEventListener(ev, (e) => {
+        e.preventDefault();
+        uploadZone.classList.remove("dragover");
+      });
+    });
+    
+    uploadZone.addEventListener("drop", (e) => {
+      const f = e.dataTransfer.files[0];
+      if (f && f.name.toLowerCase().endsWith(".csv")) {
+        selectedFile = f;
+        fileNameEl.textContent = f.name;
+        fileNameEl.style.display = "inline-block";
+        uploadZone.classList.add("active");
+        uploadBtn.disabled = false;
+        hideBanner();
+      } else {
+        showBanner("Please drop a .csv file", "err");
+      }
+    });
+    
+    // Banner
+    function showBanner(text, type = "err") {
+      banner.textContent = text;
+      banner.className = `banner show ${type}`;
+    }
+    
+    function hideBanner() {
+      banner.className = "banner";
+    }
+    
+    // Upload handler
+    uploadBtn.addEventListener("click", async () => {
+      if (!selectedFile || isProcessing) return;
+      
+      isProcessing = true;
+      uploadBtn.disabled = true;
+      btnText.innerHTML = '<span class="spinner"></span>Processing...';
+      hideBanner();
+      resultsPanel.style.display = "none";
+      
+      try {
+        const fd = new FormData();
+        fd.append("file", selectedFile);
+        
+        const res = await fetch("/api/upload", {
+          method: "POST",
+          body: fd
+        });
+        
+        const data = await res.json().catch(() => ({}));
+        
+        // Show results
+        resultsPanel.style.display = "block";
+        document.getElementById("stat-created").textContent = data.success ?? 0;
+        document.getElementById("stat-failed").textContent = data.failed ?? 0;
+        document.getElementById("stat-skipped").textContent = data.skipped ?? 0;
+        document.getElementById("stat-total").textContent = data.total_rows ?? 0;
+        
+        if (data.logs && data.logs.length > 0) {
+          logEl.textContent = data.logs.join("\n");
+          logContainer.classList.add("show");
+        }
+        
+        if (res.ok && data.success > 0) {
+          showBanner(`✅ Created ${data.success} task(s) successfully!`, "ok");
+        } else if (res.ok && data.success === 0) {
+          showBanner("⚠️ No tasks created. Check the log for details.", "warn");
+        } else {
+          showBanner(`❌ ${data.error || "Upload failed"}`, "err");
+        }
+      } catch (e) {
+        resultsPanel.style.display = "block";
+        logEl.textContent = `Error: ${String(e)}`;
+        logContainer.classList.add("show");
+        showBanner("Network error — see log", "err");
+      }
+      
+      isProcessing = false;
+      uploadBtn.disabled = !selectedFile;
+      btnText.textContent = "Upload & Process";
+    });
+    
+    // Reset
+    resetBtn.addEventListener("click", () => {
+      selectedFile = null;
+      fileInput.value = "";
+      fileNameEl.style.display = "none";
+      uploadZone.classList.remove("active");
+      uploadBtn.disabled = true;
+      resultsPanel.style.display = "none";
+      logContainer.classList.remove("show");
+      hideBanner();
+    });
+  </script>
+</body>
+</html>
