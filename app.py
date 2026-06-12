@@ -65,15 +65,23 @@ st.markdown("""
 
 # Log Sink class to update UI and build a dynamic task status table in real-time
 class StreamlitLogSink(list):
-    def __init__(self, log_placeholder, progress_placeholder, total_tasks, results_placeholder):
+    def __init__(self, log_placeholder, progress_placeholder, total_tasks, results_placeholder, df):
         super().__init__()
         self.log_placeholder = log_placeholder
         self.progress_placeholder = progress_placeholder
         self.total_tasks = total_tasks
         self.results_placeholder = results_placeholder
-        self.results_list = []
+        self.df = df
         self.current_idx = None
-        self.current_subject = None
+        
+        # Initialize the columns in df if not present
+        if "Generated Task ID" not in self.df.columns:
+            self.df["Generated Task ID"] = ""
+        if "Upload Status" not in self.df.columns:
+            self.df["Upload Status"] = "Pending"
+            
+        # Initial display
+        self.update_results_ui()
     
     def append(self, item):
         super().append(item)
@@ -84,7 +92,9 @@ class StreamlitLogSink(list):
         proc_match = re.search(r"Processing task (\d+): (.*)", item)
         if proc_match:
             self.current_idx = int(proc_match.group(1))
-            self.current_subject = proc_match.group(2)
+            row_idx = self.current_idx - 1
+            if 0 <= row_idx < len(self.df):
+                self.df.at[row_idx, "Upload Status"] = "⚙️ Processing..."
             
             # Update progress bar
             progress_val = min(self.current_idx / self.total_tasks, 1.0)
@@ -92,89 +102,60 @@ class StreamlitLogSink(list):
                 progress_val, 
                 text=f"Processing task {self.current_idx} of {self.total_tasks}..."
             )
+            self.update_results_ui()
             return
             
         # 2. Parse created issues: OK: Created issue #XXXX: subject
         created_match = re.search(r"Created issue #(\d+): (.*)", item)
         if created_match:
-            self.results_list.append({
-                "Row / Task": f"Task {self.current_idx}" if self.current_idx else "—",
-                "Subject": self.current_subject or created_match.group(2),
-                "Status": "✅ Created",
-                "Details": f"Issue #{created_match.group(1)}"
-            })
+            row_idx = self.current_idx - 1 if self.current_idx else None
+            if row_idx is not None and 0 <= row_idx < len(self.df):
+                self.df.at[row_idx, "Generated Task ID"] = created_match.group(1)
+                self.df.at[row_idx, "Upload Status"] = "✅ Success"
             self.update_results_ui()
             return
             
         # 3. Parse failed issues: ERROR: Failed to create 'subject': error
         failed_match = re.search(r"(Failed to create|Exception creating issue) '(.*?)': (.*)", item)
         if failed_match:
-            self.results_list.append({
-                "Row / Task": f"Task {self.current_idx}" if self.current_idx else "—",
-                "Subject": failed_match.group(2),
-                "Status": "❌ Failed",
-                "Details": failed_match.group(3)
-            })
+            row_idx = self.current_idx - 1 if self.current_idx else None
+            if row_idx is not None and 0 <= row_idx < len(self.df):
+                self.df.at[row_idx, "Upload Status"] = f"❌ Failed: {failed_match.group(3)}"
             self.update_results_ui()
             return
             
         # 4. Parse generic skipping/configuration errors: ERROR: Skipping: reason
         skip_match = re.search(r"Skipping: (.*)", item)
         if skip_match:
-            self.results_list.append({
-                "Row / Task": f"Task {self.current_idx}" if self.current_idx else "—",
-                "Subject": self.current_subject or "—",
-                "Status": "❌ Skipped / Failed",
-                "Details": skip_match.group(1)
-            })
+            row_idx = self.current_idx - 1 if self.current_idx else None
+            if row_idx is not None and 0 <= row_idx < len(self.df):
+                self.df.at[row_idx, "Upload Status"] = f"❌ Failed: {skip_match.group(1)}"
             self.update_results_ui()
             return
             
         # 5. Parse empty task skip: WARN: Row X: Skipping empty task (no subject)
         empty_match = re.search(r"Row (\d+): Skipping empty task \(no subject\)", item)
         if empty_match:
-            self.results_list.append({
-                "Row / Task": f"Row {empty_match.group(1)}",
-                "Subject": "—",
-                "Status": "⚠️ Skipped",
-                "Details": "No subject specified"
-            })
+            row_idx = int(empty_match.group(1)) - 2
+            if 0 <= row_idx < len(self.df):
+                self.df.at[row_idx, "Upload Status"] = "⚠️ Skipped: Empty task subject"
             self.update_results_ui()
             return
 
     def update_results_ui(self):
-        if self.results_list:
-            df = pd.DataFrame(self.results_list)
-            self.results_placeholder.dataframe(
-                df, 
-                width="stretch",
-                column_config={
-                    "Status": st.column_config.TextColumn(
-                        "Status",
-                        help="Task upload status",
-                        width="medium",
-                    ),
-                    "Row / Task": st.column_config.TextColumn(
-                        "Row / Task",
-                        width="small",
-                    ),
-                    "Subject": st.column_config.TextColumn(
-                        "Subject",
-                        width="large",
-                    ),
-                    "Details": st.column_config.TextColumn(
-                        "Details",
-                        width="large",
-                    )
-                }
-            )
+        self.results_placeholder.dataframe(
+            self.df, 
+            width="stretch"
+        )
             
     def clear(self):
         super().clear()
         self.log_placeholder.empty()
         self.progress_placeholder.empty()
         self.results_placeholder.empty()
-        self.results_list.clear()
+        self.df["Generated Task ID"] = ""
+        self.df["Upload Status"] = "Pending"
+        self.update_results_ui()
 
 # Sidebar - Settings and Configuration
 with st.sidebar:
@@ -250,9 +231,12 @@ with col1:
                     # Create Tabs for cleaner results visualization
                     tab_results, tab_logs = st.tabs(["📝 Task Execution Results", "📋 Activity Log"])
                     
+                    # Initialize results columns in dataframe
+                    preview_df["Generated Task ID"] = ""
+                    preview_df["Upload Status"] = "Pending"
+                    
                     with tab_results:
                         results_placeholder = st.empty()
-                        results_placeholder.info("Task results will be shown here as they are processed.")
                         
                     with tab_logs:
                         log_placeholder = st.empty()
@@ -264,7 +248,8 @@ with col1:
                         log_placeholder=log_placeholder, 
                         progress_placeholder=progress_placeholder, 
                         total_tasks=total_tasks, 
-                        results_placeholder=results_placeholder
+                        results_placeholder=results_placeholder,
+                        df=preview_df
                     )
                     
                     # Dynamically inject the user-provided API key into backend
@@ -291,13 +276,26 @@ with col1:
                             f"❌ Bulk upload failed or completed with errors: {result_out.get('error', 'Check logs below')}"
                         )
                     
-                    # Summary metrics
+                    # Display metrics
                     st.markdown("### 📊 Upload Summary")
                     m_col1, m_col2, m_col3, m_col4 = st.columns(4)
                     m_col1.metric("Total Rows", result_out.get("total_rows", 0))
                     m_col2.metric("Created (Success)", result_out.get("success", 0))
                     m_col3.metric("Failed", result_out.get("failed", 0))
                     m_col4.metric("Skipped", result_out.get("skipped", 0))
+                    
+                    # Offer the completed tasks CSV for download
+                    st.markdown("---")
+                    st.markdown("### 📥 Download Results")
+                    completed_csv = preview_df.to_csv(index=False).encode("utf-8-sig")
+                    st.download_button(
+                        label="📥 Download Completed Task CSV (with Task IDs)",
+                        data=completed_csv,
+                        file_name=f"completed_{uploaded_file.name}",
+                        mime="text/csv",
+                        type="primary",
+                        width="stretch"
+                    )
                     
         except Exception as e:
             st.error(f"Error loading or parsing the CSV file: {e}")
