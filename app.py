@@ -211,7 +211,13 @@ with col1:
         try:
             # Let's decode and read the CSV first to show a preview
             csv_bytes = uploaded_file.getvalue()
-            csv_text = csv_bytes.decode("utf-8-sig")
+            # csv_text = csv_bytes.decode("utf-8-sig")
+            # UPDATED RESILIENT CODE
+            try:
+                csv_text = csv_bytes.decode("utf-8-sig")
+            except UnicodeDecodeError:
+                # Fallback to Western European/Windows encoding if UTF-8 fails
+                csv_text = csv_bytes.decode("cp1252")
             preview_df = pd.read_csv(io.StringIO(csv_text))
             
             st.success(f"CSV file '{uploaded_file.name}' loaded successfully! ({len(preview_df)} rows detected)")
