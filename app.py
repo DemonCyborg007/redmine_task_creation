@@ -179,8 +179,8 @@ with col2:
     # CSV Template generation
     sample_data = (
         "Tracker,Status,Priority,Subject,Assignee,Target version,Start date,Due date,Estimated time,Parent task,RedmineID\n"
-        "Task,New,Low,Example task commercial auto development,Shridhara Devadiga,To be done,05/31/2026,07/03/2026,6,#205389,377\n"
-        "Task,New,Low,Example task contracts management development,Atharva Ghorpade,,05/31/2026,07/03/2026,12,,332\n"
+        "Task,New,Low,Example task commercial auto development,ABC ,To be done,05/31/2026,07/03/2026,6,#205389,377\n"
+        "Task,New,Low,Example task contracts management development,XYZ,,05/31/2026,07/03/2026,12,,332\n"
     )
     st.download_button(
         label="📄 Download Sample CSV Template",

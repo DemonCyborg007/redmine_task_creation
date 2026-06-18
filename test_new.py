@@ -696,7 +696,9 @@ def run_bulk_upload(
                     id_cache['versions'][cache_key] = get_version_id(project_id, version_name)
                 version_id = id_cache['versions'][cache_key]
                 if not version_id:
-                    log("INFO", f"  → Version '{version_name}' not found; task created without version")
+                    log("ERROR", f"Skipping: Version '{version_name}' not found")
+                    failed_count += 1
+                    continue
 
             # Parse dates
             due_date = parse_date(task.get('due_date'))
